@@ -849,7 +849,9 @@ function drawHist() {
     if (h > 0.5) s += `<path d="M${x},${m.t + ih} V${m.t + ih - h + r} Q${x},${m.t + ih - h} ${x + r},${m.t + ih - h} H${x + w - r} Q${x + w},${m.t + ih - h} ${x + w},${m.t + ih - h + r} V${m.t + ih} Z" fill="var(--${b.st})"/>`;
     const py = y(pin[i]);
     if (pin[i] > 0.001) s += `<line x1="${x - 5}" x2="${x + w + 5}" y1="${py}" y2="${py}" stroke="var(--ink-2)" stroke-width="2" stroke-linecap="round"/>`;
-    if (v >= 0.01) s += `<text x="${x + w / 2}" y="${Math.min(y(v), py - (Math.abs(py - y(v)) < 14 ? 4 : 0)) - 7}" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--ink)" class="num">${Math.round(v * 100)}%</text>`;
+    // label sits on its own bar; it only steps above the comparison line when the line would cross it
+    const clash = pin[i] > 0.001 && py < y(v) + 2 && py > y(v) - 22;
+    if (v >= 0.01) s += `<text x="${x + w / 2}" y="${(clash ? py : y(v)) - 7}" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--ink)" class="num">${Math.round(v * 100)}%</text>`;
     s += `<text x="${m.l + bw * i + bw / 2}" y="${m.t + ih + 18}" text-anchor="middle" font-size="12" fill="var(--ink-2)">${b.label[0]}</text>`;
     if (b.label[1]) s += `<text x="${m.l + bw * i + bw / 2}" y="${m.t + ih + 33}" text-anchor="middle" font-size="11" fill="var(--muted)">${b.label[1]}</text>`;
     s += `<rect x="${m.l + bw * i}" y="${m.t}" width="${bw}" height="${ih}" fill="transparent" data-i="${i}"/>`;
