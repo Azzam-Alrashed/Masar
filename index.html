@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Masar Launch Simulator</title>
+<style>
+/* Layout: a control desk. Levers on the left, the read-out on the right, summary before detail. */
+:root {
+  --bg: #F5F6F7; --surface: #FFFFFF; --ink: #12161C; --ink-2: #3D4652; --muted: #5A6270;
+  --faint: #9AA3AE; --rule: #E2E5E8; --track: #EDEFF1;
+  --accent: #0E6F6B; --accent-soft: #7FB3B0; --accent-wash: #E4EFEE;
+  --ok: #00897C; --warn: #D0901A; --crit: #C23B2E; --crit-wash: #F7E4E1;
+  --font-display: Cambria, "Hoefler Text", Georgia, serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1216; --surface: #161B21; --ink: #E9ECEF; --ink-2: #C2C8D0; --muted: #98A1AC;
+    --faint: #6A737E; --rule: #272E37; --track: #1F252D;
+    --accent: #4FB3AA; --accent-soft: #2D6F6A; --accent-wash: #15302E;
+    --ok: #159A8D; --warn: #BC8A12; --crit: #E04A66; --crit-wash: #3A1C24;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1216; --surface: #161B21; --ink: #E9ECEF; --ink-2: #C2C8D0; --muted: #98A1AC;
+  --faint: #6A737E; --rule: #272E37; --track: #1F252D;
+  --accent: #4FB3AA; --accent-soft: #2D6F6A; --accent-wash: #15302E;
+  --ok: #159A8D; --warn: #BC8A12; --crit: #E04A66; --crit-wash: #3A1C24;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font-sans);
+  padding-inline: max(16px, 2vw); padding-block: 20px 40px;
+  -webkit-font-smoothing: antialiased;
+}
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- Header ---------- */
+.top { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; justify-content: space-between;
+  max-width: 1760px; margin: 0 auto 18px; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+h1 { font: 600 34px/1.1 var(--font-display); margin: 4px 0 6px; letter-spacing: -.01em; text-wrap: balance; }
+.sub { margin: 0; color: var(--muted); max-width: 70ch; }
+.sub b { color: var(--ink-2); font-weight: 600; }
+.viewbar { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; }
+.seed { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
+.seed code { font: 13px var(--font-mono); color: var(--ink-2); }
+
+/* ---------- App grid ---------- */
+.app { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; max-width: 1760px; margin: 0 auto; align-items: start; }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r); }
+main { display: grid; gap: 20px; min-width: 0; }
+
+/* ---------- Levers ---------- */
+.levers { padding: 18px 18px 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.levers h2, .card h2 { font: 600 17px/1.2 var(--font-display); margin: 0; }
+.lv-intro { color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
+.group { border-top: 1px solid var(--rule); padding-top: 12px; margin-top: 12px; display: grid; gap: 6px; }
+.group-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.group-h span:first-child { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.group-h .ref { font-size: 12px; color: var(--faint); }
+.lever { display: grid; grid-template-columns: 34px minmax(0,1fr) auto; gap: 10px; align-items: center;
+  padding: 7px 8px; margin-inline: -8px; border-radius: 8px; cursor: pointer; }
+.lever:hover { background: var(--track); }
+.lever input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.sw { width: 34px; height: 20px; border-radius: 10px; background: var(--rule); position: relative; transition: background .15s; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.lever input:checked + .sw { background: var(--accent); }
+.lever input:checked + .sw::after { transform: translateX(14px); }
+.lever input:focus-visible + .sw { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lt { min-width: 0; }
+.lt b { display: block; font-weight: 600; font-size: 14px; line-height: 1.3; }
+.lt small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+.fx { font: 600 12px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap;
+  padding: 2px 7px; border-radius: 999px; background: var(--track); min-width: 52px; text-align: center; }
+.fx.up { color: var(--accent); background: var(--accent-wash); }
+.fx.down { color: var(--crit); background: var(--crit-wash); }
+.fx:empty { visibility: hidden; }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; background: var(--track); padding: 4px; border-radius: 9px; }
+.seg label { position: relative; text-align: center; padding: 6px 4px; border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1.25; }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg label:has(input:checked) { background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.seg b { display: block; font-weight: 600; }
+.seg .p { display: block; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.2em; }
+.seg-note { font-size: 12.5px; color: var(--muted); margin: 2px 0 0; min-height: 2.6em; }
+
+.lv-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--rule); background: var(--surface); border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 13.5px; font-weight: 600; }
+.btn:hover { border-color: var(--faint); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--accent); padding-inline: 6px; }
+
+/* View switches in the header reuse the lever row */
+.viewbar .lever { margin: 0; padding: 4px 8px; grid-template-columns: 34px auto; }
+.viewbar .lt b { font-size: 13.5px; }
+
+/* ---------- Read-out ---------- */
+.readout { display: grid; grid-template-columns: minmax(280px, 1.25fr) repeat(4, minmax(0, 1fr)); gap: 0; }
+.readout > div { padding: 18px 20px; min-width: 0; }
+.readout > div + div { border-left: 1px solid var(--rule); }
+.k-label { font-size: 13px; color: var(--muted); line-height: 1.3; }
+.k-value { font: 600 30px/1.1 var(--font-sans); margin-top: 6px; letter-spacing: -.01em; }
+.k-foot { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.hero .k-label { font-size: 14px; color: var(--ink-2); font-weight: 600; }
+.hero .k-value { font-size: 64px; line-height: 1; margin-top: 8px; color: var(--accent); }
+.hero .k-value.bad { color: var(--crit); }
+.delta { display: inline-block; font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; padding: 1px 8px; border-radius: 999px; margin-top: 8px; }
+.delta.up { color: var(--accent); background: var(--accent-wash); }
+.delta.down { color: var(--crit); background: var(--crit-wash); }
+.delta.flat { color: var(--muted); background: var(--track); }
+.compare { font-size: 12.5px; color: var(--muted); margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.compare b { color: var(--ink-2); }
+
+/* ---------- Chart + drivers row ---------- */
+.row { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr); gap: 20px; align-items: stretch; }
+.chartcard, .drivers { padding: 16px 20px 18px; min-width: 0; }
+.card-h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 16px; align-items: center; margin-bottom: 4px; }
+.card-sub { color: var(--muted); font-size: 13px; margin: 2px 0 10px; }
+.tabs { display: inline-grid; grid-auto-flow: column; gap: 4px; background: var(--track); padding: 3px; border-radius: 8px; }
+.tabs button { border: 0; background: transparent; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.plot { position: relative; width: 100%; }
+.plot svg { display: block; width: 100%; height: auto; overflow: visible; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.legend i.line { height: 2px; width: 14px; border-radius: 1px; background: var(--ink-2); }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12.5px; line-height: 1.35;
+  padding: 7px 10px; border-radius: 7px; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); z-index: 5; }
+.tip[hidden] { display: none; }
+
+.runpick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.chip { border: 1px solid var(--rule); background: var(--surface); border-radius: 999px; padding: 4px 11px; font-size: 13px; cursor: pointer; font-weight: 600; color: var(--ink-2); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.story { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; margin: 6px 0 10px; min-height: 30px; }
+.story .step { background: var(--track); border-radius: 6px; padding: 4px 9px; color: var(--ink-2); }
+.story .step b { color: var(--ink); font-weight: 600; }
+.story .step.crit { background: var(--crit-wash); color: var(--crit); }
+.story .step.crit b { color: var(--crit); }
+.story .step.okay { background: var(--accent-wash); color: var(--accent); }
+.story .arrow { color: var(--faint); }
+
+/* Drivers */
+.drv { display: grid; gap: 4px; margin-top: 6px; }
+.drv-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 64px; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--rule); }
+.drv-row:last-child { border-bottom: 0; }
+.drv-row .nm { min-width: 0; }
+.drv-row .nm b { display: block; font-weight: 600; font-size: 13.5px; line-height: 1.25; }
+.drv-row .nm small { color: var(--muted); font-size: 12px; }
+.drv-row.group .nm b { color: var(--accent); }
+.bar { height: 12px; background: transparent; position: relative; }
+.bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 4px 4px 0; background: var(--accent-soft); transition: width .35s ease; }
+.drv-row.group .bar i { background: var(--accent); }
+.drv-row .v { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; }
+.drv-row .v small { display: block; color: var(--muted); font-weight: 400; font-size: 11.5px; }
+.drv-note { font-size: 13px; color: var(--ink-2); background: var(--accent-wash); border-radius: 8px; padding: 10px 12px; margin-top: 12px; }
+.drv-note:empty { display: none; }
+.pending { opacity: .55; transition: opacity .2s; }
+
+/* Assumptions */
+details.assume { padding: 14px 20px; }
+details.assume summary { cursor: pointer; font: 600 16px var(--font-display); }
+details.assume summary small { font: 13px var(--font-sans); color: var(--muted); margin-left: 8px; }
+.assume-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px 28px; margin-top: 12px; }
+.assume h3 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 6px; }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 5px 8px 5px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; }
+td.r, th.r { text-align: right; }
+.assume p { font-size: 13px; color: var(--muted); margin: 6px 0 0; max-width: 70ch; }
+
+.foot { max-width: 1760px; margin: 18px auto 0; font-size: 12.5px; color: var(--muted); }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1500px) {
+  .readout { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .readout .hero { grid-column: 1 / -1; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "v l" "v d" "v c"; gap: 2px 24px; align-items: center; }
+  .readout .hero .k-value { grid-area: v; margin: 0; }
+  .readout .hero .k-label { grid-area: l; align-self: end; }
+  .readout .hero > div:nth-child(3) { grid-area: d; }
+  .readout .hero .compare { grid-area: c; align-self: start; margin-top: 2px; }
+  .readout > div:nth-child(2) { border-left: 0; }
+}
+@media (max-width: 1280px) {
+  .row { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 1000px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .levers { position: static; }
+}
+@media (max-width: 640px) {
+  h1 { font-size: 27px; }
+  .readout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .readout .hero { display: block; }
+  .readout .hero .k-value { margin-top: 8px; }
+  .readout > div:nth-child(n) { border-left: 0; border-top: 1px solid var(--rule); }
+  .readout > div:first-child { border-top: 0; }
+  .readout > div:nth-child(odd):not(.hero) { border-left: 1px solid var(--rule); }
+  .hero .k-value { font-size: 52px; }
+  .drv-row { grid-template-columns: minmax(0, 1fr) 70px; }
+  .drv-row .bar { grid-column: 1 / -1; grid-row: 2; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <div class="eyebrow">Masar · Tawasul Services Company · Boud</div>
+    <h1>Masar launch simulator</h1>
+    <p class="sub">The 16-week plan, run <b>10,000 times</b> with realistic uncertainty. Kick-off Sun 6 Sep 2026, committed launch <b>Sun 27 Dec</b>, 79 working days, no buffer. Every input is an illustrative assumption, to be replaced with week 1 data.</p>
+  </div>
+  <div class="viewbar">
+    <label class="lever" for="v-certain"><input type="checkbox" id="v-certain" data-k="certain"><span class="sw"></span><span class="lt"><b>Remove all uncertainty</b></span></label>
+    <label class="lever" for="v-naive"><input type="checkbox" id="v-naive" data-k="naive"><span class="sw"></span><span class="lt"><b>Treat Bandar as four people</b></span></label>
+    <div class="seed">Seed <code id="seed" class="num">2026</code><button class="btn ghost" id="reseed" type="button">Reseed</button></div>
+  </div>
+</header>
+
+<div class="app">
+  <aside class="card levers" aria-label="Scope and mitigations">
+    <h2>Scope and mitigations</h2>
+    <p class="lv-intro">Each badge shows what flipping that lever does to the chance of 27 Dec, from where you are now.</p>
+
+    <div class="group">
+      <div class="group-h"><span>Scope at launch</span><span class="ref">Slide 8</span></div>
+      <div class="seg" role="radiogroup" aria-label="Scope option">
+        <label for="sc-A"><input type="radio" name="scope" id="sc-A" value="A"><b>A</b><span class="p" data-sp="A"></span></label>
+        <label for="sc-B"><input type="radio" name="scope" id="sc-B" value="B"><b>B</b><span class="p" data-sp="B"></span></label>
+        <label for="sc-C"><input type="radio" name="scope" id="sc-C" value="C"><b>C</b><span class="p" data-sp="C"></span></label>
+      </div>
+      <p class="seg-note" id="scopeNote"></p>
+    </div>
+
+    <div class="group">
+      <div class="group-h"><span>Bandar Al-Otaibi · TSC IT</span><span class="ref">Slide 12</span></div>
+      <label class="lever" for="lv-slot"><input type="checkbox" id="lv-slot" data-k="slot"><span class="sw"></span>
+        <span class="lt"><b>Standing weekly slot</b><small>Booked in week 1. More of his time, never zero in a crisis week.</small></span><span class="fx" data-fx="slot"></span></label>
+      <label class="lever" for="lv-backup"><input type="checkbox" id="lv-backup" data-k="backup"><span class="sw"></span>
+        <span class="lt"><b>Named backup</b><small>Takes cloud access and the CRM test environment off his queue.</small></span><span class="fx" data-fx="backup"></span></label>
+      <label class="lever" for="lv-standIn"><input type="checkbox" id="lv-standIn" data-k="standIn"><span class="sw"></span>
+        <span class="lt"><b>Build against a CRM stand-in</b><small>A late API contract no longer stalls the back-end.</small></span><span class="fx" data-fx="standIn"></span></label>
+    </div>
+
+    <div class="group">
+      <div class="group-h"><span>Other owners</span><span class="ref">Slides 12, 13</span></div>
+      <label class="lever" for="lv-workshop"><input type="checkbox" id="lv-workshop" data-k="workshop"><span class="sw"></span>
+        <span class="lt"><b>Timeboxed workshop with Saud</b><small>Week 2. Request types 3 and 4 defined on time more often.</small></span><span class="fx" data-fx="workshop"></span></label>
+      <label class="lever" for="lv-templates"><input type="checkbox" id="lv-templates" data-k="templates"><span class="sw"></span>
+        <span class="lt"><b>Content templates to Marketing</b><small>Week 2, so the week 10 freeze is realistic.</small></span><span class="fx" data-fx="templates"></span></label>
+    </div>
+
+    <div class="group">
+      <div class="group-h"><span>Boud team</span><span class="ref">Slide 11</span></div>
+      <label class="lever" for="lv-qaFull"><input type="checkbox" id="lv-qaFull" data-k="qaFull"><span class="sw"></span>
+        <span class="lt"><b>QA full-time for testing</b><small>Weeks 11 to 14 only. Testing runs about 20% faster.</small></span><span class="fx" data-fx="qaFull"></span></label>
+      <label class="lever" for="lv-designerExt"><input type="checkbox" id="lv-designerExt" data-k="designerExt"><span class="sw"></span>
+        <span class="lt"><b>Keep the designer to week 10</b><small>Insurance against late definitions pushing design past week 8.</small></span><span class="fx" data-fx="designerExt"></span></label>
+    </div>
+
+    <div class="group">
+      <div class="group-h"><span>Kick-off question</span><span class="ref">Slide 15</span></div>
+      <div class="k-label" style="margin-bottom:2px">Who requests payment gateway access?</div>
+      <div class="seg" role="radiogroup" aria-label="Payment gateway owner">
+        <label for="po-F"><input type="radio" name="payOwner" id="po-F" value="Finance"><b>Finance</b><span class="p" data-pp="Finance"></span></label>
+        <label for="po-I"><input type="radio" name="payOwner" id="po-I" value="IT"><b>TSC IT (Bandar)</b><span class="p" data-pp="IT"></span></label>
+      </div>
+    </div>
+
+    <div class="lv-actions">
+      <button class="btn primary" id="applyAll" type="button">Apply all mitigations</button>
+      <button class="btn" id="reset" type="button">Reset to as briefed</button>
+    </div>
+  </aside>
+
+  <main>
+    <section class="card readout" aria-live="polite">
+      <div class="hero">
+        <div class="k-label">Chance of launching on Sun 27 Dec</div>
+        <div class="k-value" id="kOn">–</div>
+        <div><span class="delta flat" id="kOnDelta"></span></div>
+        <div class="compare">Compared with <b id="pinName">As briefed</b><button class="btn ghost" id="pin" type="button">Compare against this</button></div>
+      </div>
+      <div><div class="k-label">Live before the campaign starts on Sun 3 Jan</div><div class="k-value num" id="kCamp">–</div><div class="k-foot" id="kCampD"></div></div>
+      <div><div class="k-label">Typical launch, half of runs land by</div><div class="k-value" id="kP50">–</div><div class="k-foot" id="kP50D"></div></div>
+      <div><div class="k-label">Bad case, 1 run in 5 lands after</div><div class="k-value" id="kP80">–</div><div class="k-foot" id="kP80D"></div></div>
+      <div><div class="k-label">Expected cost of slip</div><div class="k-value" id="kCost">–</div><div class="k-foot" id="kCostD">Contract value at SAR 92k a week, not margin</div></div>
+    </section>
+
+    <section class="row">
+      <div class="card chartcard">
+        <div class="card-h">
+          <h2 id="chartTitle">When does Masar launch?</h2>
+          <div class="tabs" role="tablist">
+            <button role="tab" id="tab-dist" aria-selected="true" aria-controls="pane-dist" type="button">10,000 runs</button>
+            <button role="tab" id="tab-run" aria-selected="false" aria-controls="pane-run" type="button">Play one run</button>
+          </div>
+        </div>
+        <div id="pane-dist" role="tabpanel">
+          <p class="card-sub">Share of runs by launch date. The campaign is booked for the week after 27 Dec.</p>
+          <div class="plot" id="hist"></div>
+          <div class="legend">
+            <span><i style="background:var(--ok)"></i>On 27 Dec</span>
+            <span><i style="background:var(--warn)"></i>Late, still before the campaign</span>
+            <span><i style="background:var(--crit)"></i>After the campaign has started</span>
+            <span><i class="line"></i><span id="legPin">As briefed</span></span>
+          </div>
+        </div>
+        <div id="pane-run" role="tabpanel" hidden>
+          <div class="runpick">
+            <button class="chip" data-pick="p50" aria-pressed="true" type="button">A typical run</button>
+            <button class="chip" data-pick="p90" aria-pressed="false" type="button">A bad run, 1 in 10</button>
+            <button class="chip" data-pick="rand" aria-pressed="false" type="button">Any run</button>
+            <button class="btn ghost" id="replay" type="button">Replay</button>
+          </div>
+          <div class="story" id="story"></div>
+          <div class="plot" id="gantt"></div>
+          <div class="legend">
+            <span><i style="background:var(--track);outline:1px solid var(--rule)"></i>Planned slot</span>
+            <span><i style="background:var(--accent-soft)"></i>Actual work</span>
+            <span><i style="background:var(--crit)"></i>Past its planned end, or a late dependency</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card drivers">
+        <div class="card-h"><h2>What the risk is made of</h2></div>
+        <p class="card-sub">Working days of expected slip given back if this one item always went to plan. Same 10,000 runs, same luck.</p>
+        <div class="drv" id="drv"></div>
+        <div class="drv-note" id="drvNote"></div>
+      </div>
+    </section>
+
+    <details class="card assume" id="assume">
+      <summary>Assumptions <small>Illustrative calibration. Every number here is an input to replace with week 1 data.</small></summary>
+      <div class="assume-grid" id="assumeGrid"></div>
+    </details>
+  </main>
+</div>
+
+<p class="foot">Method: Monte Carlo over the slide 10 plan. Durations are triangular three-point estimates in Saudi working days (Sunday to Thursday, National Day excluded). Work starts no earlier than its planned date, so finishing early is not passed on. Bandar’s items are worked as one queue in need-by order. The fictional case is from the Boud business case brief.</p>
+
+<script>
+// ==ENGINE START==
+/* ============================================================
+   MASAR LAUNCH SIMULATOR · ENGINE
+   Pure functions, no DOM. Units are Saudi working days
+   (Sunday to Thursday) counted from kick-off, Sun 6 Sep 2026 = day 0.
+   ============================================================ */
+
+/* ---------- Calendar ---------- */
+const CAL = (() => {
+  const HOLIDAYS = new Set(['2026-09-23', '2027-02-22']); // National Day, Founding Day
+  const start = Date.UTC(2026, 8, 6);
+  const days = [];
+  for (let t = start; days.length < 260; t += 86400000) {
+    const d = new Date(t), wd = d.getUTCDay(); // 5 Fri, 6 Sat
+    if (wd === 5 || wd === 6) continue;
+    if (HOLIDAYS.has(d.toISOString().slice(0, 10))) continue;
+    days.push(d);
+  }
+  const index = new Map(days.map((d, i) => [d.toISOString().slice(0, 10), i]));
+  const dayToDate = n => days[Math.max(0, Math.min(days.length - 1, Math.round(n)))];
+  const dateToDay = iso => index.has(iso) ? index.get(iso) : -1;
+  // Start-of-week index for plan week k (1-based). W3 has four days.
+  const weekStart = k => k <= 3 ? (k - 1) * 5 : (k - 1) * 5 - 1;
+  return { days, dayToDate, dateToDay, weekStart, LAUNCH: dateToDay('2026-12-27'),
+           CAMPAIGN: dateToDay('2027-01-03') };
+})();
+
+/* ---------- Model: every assumption lives here ----------
+   Illustrative calibration. Three-point estimates are [optimistic, likely, pessimistic]
+   in working days, sampled from a triangular distribution. */
+const MODEL = {
+  plan: {           // the plan as written on slide 10, as [start, duration]
+    design:   [5, 24],    // W2 to design sign-off at end of W6
+    frontend: [29, 30],   // after sign-off to end of W12
+    backend:  [10, 49],   // W3 to end of W12
+    types34:  [14, 45],   // after the W3 scope decision to end of W12
+    ai:       [10, 49],   // W3 to end of W12
+    intCrm:   [24, 30],   // W6 to integration-ready, end of W11
+    intId:    [34, 20],   // W8 to end of W11
+    intPay:   [24, 30],   // W6 to end of W11
+    test:     [49, 20],   // Test and UAT, W11 to W14
+    fix:      [69, 10],   // Fix and launch prep, W15 to W16
+  },
+  est: {
+    design:   [15, 18, 28],
+    frontend: [20, 23, 35],   // Arabic RTL is the long tail
+    backend:  [35, 40, 56],
+    types34:  [30, 35, 52],
+    intCrm:   [18, 22, 38],   // undocumented API
+    intId:    [11, 14, 25],
+    intPay:   [18, 22, 38],   // includes bank certification
+    test:     [13, 16, 27],   // QA at 50%
+    fix:      [5, 7, 13],
+  },
+  scope: {
+    A: { label: 'A · All four types, full AI', types34: true,  ai: [42, 52, 75], test: 1.10, backend: 1.00, frontend: 1.00 },
+    B: { label: 'B · All four types, AI as guided FAQ', types34: true,  ai: [28, 34, 52], test: 1.00, backend: 1.00, frontend: 1.00 },
+    C: { label: 'C · Two highest-volume types, broader AI', types34: false, ai: [34, 40, 58], test: 0.85, backend: 0.92, frontend: 0.88 },
+  },
+  // Overlap allowed between finishing work and the start of testing (slide 10: phases overlap)
+  leadIntoTest: { build: 10, integration: 5 },
+  // Bandar Al-Otaibi: one person, one queue. Requests issued at kick-off, worked in need-by order.
+  bandar: {
+    share: [0.20, 0.35, 0.55],            // fraction of his day available to Masar
+    disruption: { pWeek: 0.12, days: [3, 5, 10] }, // another project's incident takes him away
+    slot:   { shareBoost: 0.10, floor: 0.15 },     // standing weekly slot: more time, never zero
+    backup: { share: 0.30, takes: ['cloud', 'testEnv'] }, // named backup takes infrastructure items
+    tasks: {
+      crm:      { label: 'CRM API contract documented', need: 5,  effort: [0.5, 1.5, 4], wait: [0, 0, 0] },
+      cloud:    { label: 'Cloud tenancy access',        need: 10, effort: [0.5, 1, 2],   wait: [1, 3, 8] },
+      testEnv:  { label: 'CRM test environment',        need: 24, effort: [2, 4, 8],     wait: [0, 0, 0] },
+      identity: { label: 'Identity and login integration', need: 34, effort: [1.5, 3, 6], wait: [0, 2, 6] },
+    },
+    payment:  { label: 'Payment gateway credentials',  need: 24, effort: [1, 2, 4],     wait: [4, 8, 18] },
+  },
+  // Owners outside TSC IT: chance of being late, and by how much if late
+  deps: {
+    payment: { label: 'Payment gateway credentials', owner: 'Finance', need: 24, pLate: 0.40, late: [3, 8, 20] },
+    defs:    { label: 'Request types 3 and 4 defined', owner: 'Saud Al-Enezi', need: 5, pLate: 0.60, late: [4, 12, 35],
+               mitigated: { pLate: 0.30, late: [2, 5, 12] } },
+    content: { label: 'Content freeze', owner: 'TSC Marketing', need: 49, pLate: 0.45, late: [3, 8, 25],
+               mitigated: { pLate: 0.20, late: [2, 4, 10] } },
+  },
+  impact: {
+    crmLateOnBackend: 0.75, crmLateWithStandIn: 0.20, // building against a stand-in absorbs most of it
+    cloudLateOnBackend: 0.80,
+    defsToDesign: 10, defsToBuild: 5,                 // days of work after definitions land
+  },
+  designer: { leavesAfter: 39, extendedTo: 49, slowdown: 2.5 }, // after W8 the front-end engineer finishes design
+  qa: { fullTime: 0.80 },
+  money: { slipPerWeek: 91800, uatPayment: 400000 }, // contract value at 5.63 FTE, not margin
+};
+
+/* ---------- Random numbers ---------- */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+// One fixed slot per random draw, so every scenario sees the same luck (common random numbers)
+const U = {}; ['design', 'frontend', 'backend', 'types34', 'ai', 'intCrm', 'intId', 'intPay', 'test', 'fix',
+  'bShare', 'eCrm', 'eCloud', 'eTestEnv', 'eIdentity', 'ePayment', 'wCloud', 'wIdentity', 'wPayment',
+  'payment', 'defs', 'content'].forEach((k, i) => U[k] = i);
+const DISRUPT0 = Object.keys(U).length, WEEKS = 32, K = DISRUPT0 + WEEKS * 2;
+
+function makeUniforms(seed, runs) {
+  const r = mulberry32(seed), a = new Float64Array(runs * K);
+  for (let i = 0; i < a.length; i++) a[i] = r();
+  return a;
+}
+
+const tri = (u, [o, m, p]) => {
+  if (p <= o) return m;
+  const f = (m - o) / (p - o);
+  return u < f ? o + Math.sqrt(u * (p - o) * (m - o)) : p - Math.sqrt((1 - u) * (p - o) * (p - m));
+};
+const lateBy = (u, pLate, range) => u < 1 - pLate ? 0 : tri((u - (1 - pLate)) / pLate, range);
+
+/* ---------- Bandar's queue ---------- */
+const CAP = new Float64Array(400);
+function bandarCapacity(R, o, cfg) {
+  const B = MODEL.bandar, share = tri(R[o + U.bShare], B.share) + (cfg.slot ? B.slot.shareBoost : 0);
+  CAP.fill(share);
+  for (let w = 0; w < WEEKS; w++) {
+    if (R[o + DISRUPT0 + 2 * w] < B.disruption.pWeek) {
+      const len = Math.round(tri(R[o + DISRUPT0 + 2 * w + 1], B.disruption.days));
+      for (let d = w * 5; d < Math.min(CAP.length, w * 5 + len); d++) CAP[d] = cfg.slot ? B.slot.floor : 0;
+    }
+  }
+}
+// Work items in order through a server whose capacity varies by day. Returns finish times.
+function serve(items, cap, from = 0) {
+  let t = from; const out = [];
+  for (const it of items) {
+    let rem = it.effort;
+    while (rem > 1e-9) {
+      const day = Math.floor(t), c = typeof cap === 'number' ? cap : cap[Math.min(day, cap.length - 1)];
+      const left = day + 1 - t;
+      if (c <= 0) { t = day + 1; continue; }
+      if (c * left >= rem) { t += rem / c; rem = 0; } else { rem -= c * left; t = day + 1; }
+      if (t > 390) { rem = 0; }
+    }
+    out.push(t);
+  }
+  return out;
+}
+
+/* ---------- One run ----------
+   cfg: { scope, slot, backup, standIn, workshop, templates, qaFull, designerExt,
+          paymentOwner: 'Finance'|'IT', naive, certain }
+   fix: Set of risk sources forced to plan (for the drivers analysis) */
+function runOnce(R, o, cfg, fix, rec) {
+  const P = MODEL.plan, E = MODEL.est, S = MODEL.scope[cfg.scope], I = MODEL.impact, B = MODEL.bandar;
+  const certain = cfg.certain;
+  const dur = (k, range, mult = 1) => {
+    if (certain) return P[k][1];
+    const d = tri(R[o + U[k]], range) * mult;
+    return fix.has(k) ? Math.min(d, P[k][1]) : d;   // "goes to plan" means never later than plan
+  };
+
+  // ---- Client dependencies: ready day ----
+  const ready = {};
+  const bTasks = ['crm', 'cloud', 'testEnv', 'identity'];
+  const payViaIT = cfg.paymentOwner === 'IT';
+  if (certain) {
+    for (const k of bTasks) ready[k] = B.tasks[k].need;
+    ready.payment = MODEL.deps.payment.need;
+  } else {
+    bandarCapacity(R, o, cfg);
+    const items = bTasks.map(k => ({ k, need: B.tasks[k].need,
+      effort: tri(R[o + U['e' + k[0].toUpperCase() + k.slice(1)]], B.tasks[k].effort),
+      wait: B.tasks[k].wait[2] ? tri(R[o + U['w' + k[0].toUpperCase() + k.slice(1)]], B.tasks[k].wait) : 0 }));
+    if (payViaIT) items.push({ k: 'payment', need: B.payment.need, effort: tri(R[o + U.ePayment], B.payment.effort),
+      wait: tri(R[o + U.wPayment], B.payment.wait) });
+    items.sort((a, b) => a.need - b.need);
+    if (cfg.naive) {
+      for (const it of items) ready[it.k] = serve([it], CAP)[0] + it.wait;
+    } else {
+      const toBackup = cfg.backup ? items.filter(it => B.backup.takes.includes(it.k)) : [];
+      const toBandar = items.filter(it => !toBackup.includes(it));
+      serve(toBandar, CAP).forEach((t, i) => ready[toBandar[i].k] = t + toBandar[i].wait);
+      serve(toBackup, B.backup.share).forEach((t, i) => ready[toBackup[i].k] = t + toBackup[i].wait);
+    }
+    if (!payViaIT) { const d = MODEL.deps.payment; ready.payment = d.need + lateBy(R[o + U.payment], d.pLate, d.late); }
+    // Being early does not help: work is scheduled to the need-by date
+    for (const k of [...bTasks, 'payment']) {
+      const need = k === 'payment' ? MODEL.deps.payment.need : B.tasks[k].need;
+      ready[k] = fix.has('bandar.all') && k !== 'payment' || fix.has(k) ? need : Math.max(need, ready[k]);
+    }
+  }
+  const D = MODEL.deps;
+  const dep = (k, mitigated) => {
+    const d = D[k], m = mitigated && d.mitigated ? d.mitigated : d;
+    return certain || fix.has(k) ? d.need : d.need + lateBy(R[o + U[k]], m.pLate, m.late);
+  };
+  ready.defs = dep('defs', cfg.workshop);
+  ready.content = dep('content', cfg.templates);
+
+  // ---- Activities ----
+  const late = (k, need) => Math.max(0, ready[k] - need);
+  const A = {};
+  // Back-end: cannot deploy without the cloud; builds against the CRM contract
+  const beStart = P.backend[0] + I.cloudLateOnBackend * late('cloud', B.tasks.cloud.need);
+  A.backend = { s: beStart, f: beStart + dur('backend', E.backend, S.backend) +
+    late('crm', B.tasks.crm.need) * (cfg.standIn ? I.crmLateWithStandIn : I.crmLateOnBackend) };
+  // Design: request types 3 and 4 need definitions before their screens can be designed
+  let desF = P.design[0] + dur('design', E.design);
+  if (S.types34) desF = Math.max(desF, ready.defs + I.defsToDesign);
+  const cliff = cfg.designerExt ? MODEL.designer.extendedTo : MODEL.designer.leavesAfter;
+  const cliffHit = desF > cliff;
+  if (cliffHit) desF = cliff + (desF - cliff) * MODEL.designer.slowdown;
+  A.design = { s: P.design[0], f: desF, cliffHit };
+  const feS = Math.max(P.frontend[0], desF);
+  A.frontend = { s: feS, f: feS + dur('frontend', E.frontend, S.frontend) };
+  if (S.types34) {
+    const s = Math.max(P.types34[0], ready.defs + I.defsToBuild);
+    A.types34 = { s, f: s + dur('types34', E.types34) };
+  }
+  A.ai = { s: P.ai[0], f: P.ai[0] + dur('ai', S.ai) };
+  const intS = (k, depKey) => Math.max(P[k][0], ready[depKey]);
+  A.intCrm = { s: intS('intCrm', 'testEnv') }; A.intCrm.f = A.intCrm.s + dur('intCrm', E.intCrm);
+  A.intId  = { s: intS('intId', 'identity') }; A.intId.f  = A.intId.s  + dur('intId', E.intId);
+  A.intPay = { s: intS('intPay', 'payment') }; A.intPay.f = A.intPay.s + dur('intPay', E.intPay);
+
+  // ---- Testing starts when everything it needs is close enough to done ----
+  const L = MODEL.leadIntoTest;
+  const gates = [
+    ['plan', P.test[0]],
+    ['backend', A.backend.f - L.build], ['frontend', A.frontend.f - L.build], ['ai', A.ai.f - L.build],
+    ['intCrm', A.intCrm.f - L.integration], ['intId', A.intId.f - L.integration], ['intPay', A.intPay.f - L.integration],
+    ['content', ready.content],
+  ];
+  if (A.types34) gates.push(['types34', A.types34.f - L.build]);
+  let gate = gates[0];
+  for (const g of gates) if (g[1] > gate[1] + 1e-9) gate = g;
+  const testS = gate[1];
+  const qa = cfg.qaFull ? MODEL.qa.fullTime : 1;
+  A.test = { s: testS, f: testS + dur('test', E.test, S.test * qa) };
+  const fixS = Math.max(P.fix[0], A.test.f);
+  A.fix = { s: fixS, f: fixS + dur('fix', E.fix) };
+  const launch = Math.max(CAL.LAUNCH, Math.ceil(A.fix.f - 1e-6));
+
+  if (rec) { rec.ready = ready; rec.A = A; rec.gate = gate[0]; rec.launch = launch; rec.uatEntry = testS + 10; }
+  return launch;
+}
+
+/* ---------- Many runs ---------- */
+const NO_FIX = new Set();
+function simulate(R, runs, cfg, fix = NO_FIX) {
+  const launch = new Int16Array(runs);
+  let uatLateSum = 0, uatOnTime = 0;
+  const rec = {};
+  for (let i = 0; i < runs; i++) {
+    launch[i] = runOnce(R, i * K, cfg, fix, rec);
+    const uatLate = Math.max(0, rec.uatEntry - (MODEL.plan.test[0] + 10));
+    uatLateSum += uatLate; if (uatLate < 0.5) uatOnTime++;
+  }
+  return summarise(launch, { uatOnTime: uatOnTime / runs, uatLate: uatLateSum / runs });
+}
+function summarise(launch, extra) {
+  const n = launch.length, sorted = Int16Array.from(launch).sort();
+  let onTime = 0, beforeCampaign = 0, slip = 0;
+  for (const d of launch) { if (d <= CAL.LAUNCH) onTime++; if (d < CAL.CAMPAIGN) beforeCampaign++; slip += d - CAL.LAUNCH; }
+  const q = p => sorted[Math.min(n - 1, Math.floor(p * n))];
+  return { launch, n, pOnTime: onTime / n, pBeforeCampaign: beforeCampaign / n,
+    p50: q(0.5), p80: q(0.8), p90: q(0.9), meanSlip: slip / n,
+    cost: slip / n / 5 * MODEL.money.slipPerWeek, ...extra };
+}
+
+/* ---------- What drives the risk ----------
+   Re-run the same luck with one source forced to plan, and measure what it gives back. */
+const SOURCES = [
+  { key: 'bandar.all', label: 'All four of Bandar’s items', owner: 'Bandar · TSC IT', group: true },
+  { key: 'crm', label: 'CRM API contract', owner: 'Bandar · TSC IT' },
+  { key: 'cloud', label: 'Cloud tenancy access', owner: 'Bandar · TSC IT' },
+  { key: 'testEnv', label: 'CRM test environment', owner: 'Bandar · TSC IT' },
+  { key: 'identity', label: 'Identity and login', owner: 'Bandar · TSC IT' },
+  { key: 'payment', label: 'Payment gateway credentials', owner: 'Finance or IT' },
+  { key: 'defs', label: 'Request types 3 and 4 defined', owner: 'Saud · Call centre' },
+  { key: 'content', label: 'Arabic and English content', owner: 'TSC Marketing' },
+  { key: 'ai', label: 'AI assistant build', owner: 'Boud team' },
+  { key: 'backend', label: 'Back-end build', owner: 'Boud team' },
+  { key: 'frontend', label: 'Front-end build, incl. RTL', owner: 'Boud team' },
+  { key: 'design', label: 'Design', owner: 'Boud team' },
+  { key: 'types34', label: 'Request types 3 and 4 build', owner: 'Boud team' },
+  { key: 'int', label: 'Integration work', owner: 'Boud team', keys: ['intCrm', 'intId', 'intPay'] },
+  { key: 'test', label: 'Testing and UAT', owner: 'Boud team' },
+  { key: 'fix', label: 'Fix and launch prep', owner: 'Boud team' },
+];
+function drivers(R, runs, cfg, base) {
+  return SOURCES
+    .filter(s => s.key !== 'types34' || MODEL.scope[cfg.scope].types34)
+    .map(s => {
+      const r = simulate(R, runs, cfg, new Set(s.keys || [s.key]));
+      return { ...s, gain: r.pOnTime - base.pOnTime, slipSaved: base.meanSlip - r.meanSlip };
+    })
+    .sort((a, b) => b.slipSaved - a.slipSaved || b.gain - a.gain);
+}
+
+if (typeof module !== 'undefined') module.exports = { CAL, MODEL, makeUniforms, runOnce, simulate, drivers, K, NO_FIX };
+// ==ENGINE END==
+</script>
+<script>
+/* ============================================================
+   UI
+   ============================================================ */
+const N = 10000;
+const AS_BRIEFED = { scope: 'A', paymentOwner: 'Finance', slot: false, backup: false, standIn: false,
+  workshop: false, templates: false, qaFull: false, designerExt: false, naive: false, certain: false };
+const MITIGATIONS = ['slot', 'backup', 'standIn', 'workshop', 'templates', 'qaFull', 'designerExt'];
+
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const state = { cfg: { ...AS_BRIEFED }, seed: 2026, pin: null, pinName: 'As briefed', pick: 'p50', randIdx: 0, res: null, job: 0 };
+let R = makeUniforms(state.seed, N);
+
+const fmtDate = (d, wd = true) => CAL.dayToDate(d).toLocaleDateString('en-GB',
+  { ...(wd ? { weekday: 'short' } : {}), day: 'numeric', month: 'short', timeZone: 'UTC' });
+const pct = p => p >= 0.995 && p < 1 ? '>99%' : p > 0 && p < 0.005 ? '<1%' : Math.round(p * 100) + '%';
+const pts = d => (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(Math.round(d * 100)) + ' pts';
+const sar = v => 'SAR ' + (v >= 1e6 ? (v / 1e6).toFixed(2) + 'm' : Math.round(v / 1000) + 'k');
+const late = d => d <= CAL.LAUNCH ? 'On the committed date' : `${d - CAL.LAUNCH} working day${d - CAL.LAUNCH === 1 ? '' : 's'} late`;
+
+/* ---------- Controls ---------- */
+function syncControls() {
+  const c = state.cfg;
+  $$('input[type=checkbox][data-k]').forEach(i => i.checked = !!c[i.dataset.k]);
+  $$('input[name=scope]').forEach(i => i.checked = i.value === c.scope);
+  $$('input[name=payOwner]').forEach(i => i.checked = i.value === c.paymentOwner);
+  $('#scopeNote').textContent = MODEL.scope[c.scope].label.replace(/^. · /, '') +
+    (c.scope === 'C' ? '. Types 3 and 4 become a priced change request.' : c.scope === 'A' ? '. The brief as written.' : '. AI capability expands in phase 2.');
+}
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.k) state.cfg[t.dataset.k] = t.checked;
+  else if (t.name === 'scope') state.cfg.scope = t.value;
+  else if (t.name === 'payOwner') state.cfg.paymentOwner = t.value;
+  else return;
+  update();
+});
+$('#applyAll').onclick = () => { MITIGATIONS.forEach(k => state.cfg[k] = true); update(); };
+$('#reset').onclick = () => { state.cfg = { ...AS_BRIEFED }; update(); };
+$('#reseed').onclick = () => {
+  state.seed = 1 + Math.floor(Math.random() * 99999); $('#seed').textContent = state.seed;
+  R = makeUniforms(state.seed, N); state.pin = computePin(state.pinCfg); update();
+};
+$('#pin').onclick = () => {
+  state.pinCfg = { ...state.cfg }; state.pin = state.res; state.pinName = describe(state.cfg); update();
+};
+function describe(c) {
+  if (c.certain) return 'The plan as written';
+  const on = MITIGATIONS.filter(k => c[k]).length;
+  return `Option ${c.scope}` + (on === MITIGATIONS.length ? ', all mitigations' : on ? `, ${on} mitigation${on > 1 ? 's' : ''}` : ', no mitigations') +
+    (c.paymentOwner === 'IT' ? ', payment via IT' : '') + (c.naive ? ', Bandar as four' : '');
+}
+function computePin(cfg) { return simulate(R, N, cfg || AS_BRIEFED); }
+
+/* tabs */
+$$('.tabs button').forEach(b => b.onclick = () => {
+  $$('.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
+  $('#pane-dist').hidden = b.id !== 'tab-dist'; $('#pane-run').hidden = b.id !== 'tab-run';
+  $('#chartTitle').textContent = b.id === 'tab-dist' ? 'When does Masar launch?' : 'One run, played out';
+  if (b.id === 'tab-run') drawRun(true);
+});
+$$('[data-pick]').forEach(b => b.onclick = () => {
+  state.pick = b.dataset.pick;
+  if (state.pick === 'rand') state.randIdx = Math.floor(Math.random() * N);
+  $$('[data-pick]').forEach(x => x.setAttribute('aria-pressed', x === b)); drawRun(true);
+});
+$('#replay').onclick = () => drawRun(true);
+
+/* ---------- Update ---------- */
+function update() {
+  syncControls();
+  const c = state.cfg;
+  state.res = simulate(R, N, c);
+  if (!state.pin) state.pin = computePin();
+  renderReadout(); drawHist(); if (!$('#pane-run').hidden) drawRun(false);
+  $('#pinName').textContent = state.pinName; $('#legPin').textContent = state.pinName;
+  scheduleSecondary();
+}
+
+function renderReadout() {
+  const r = state.res, p = state.pin;
+  const on = $('#kOn'); on.textContent = pct(r.pOnTime); on.classList.toggle('bad', r.pOnTime < 0.25);
+  const d = r.pOnTime - p.pOnTime, dEl = $('#kOnDelta');
+  dEl.className = 'delta ' + (Math.abs(d) < 0.005 ? 'flat' : d > 0 ? 'up' : 'down');
+  dEl.textContent = Math.abs(d) < 0.005 ? 'Same as comparison' : `${pts(d)} vs comparison`;
+  $('#kCamp').textContent = pct(r.pBeforeCampaign);
+  $('#kCampD').textContent = `${pct(1 - r.pBeforeCampaign)} of runs miss the campaign`;
+  $('#kP50').textContent = fmtDate(r.p50); $('#kP50D').textContent = late(r.p50);
+  $('#kP80').textContent = fmtDate(r.p80); $('#kP80D').textContent = late(r.p80);
+  $('#kCost').textContent = r.cost < 500 ? 'SAR 0' : sar(r.cost);
+  $('#kCostD').textContent = `${r.meanSlip.toFixed(1)} working days on average. Contract value, not margin`;
+}
+
+/* ---------- Secondary analysis: lever badges and drivers, in slices so the UI stays live ---------- */
+function scheduleSecondary() {
+  const job = ++state.job, c = { ...state.cfg }, base = state.res;
+  $('#drv').classList.add('pending'); $$('.fx').forEach(f => f.classList.add('pending'));
+  const tasks = [];
+  const certain = c.certain;
+  for (const k of MITIGATIONS) tasks.push(() => {
+    const el = $(`[data-fx="${k}"]`);
+    if (certain) { el.textContent = ''; return; }
+    const r = simulate(R, N, { ...c, [k]: !c[k] });
+    const d = c[k] ? base.pOnTime - r.pOnTime : r.pOnTime - base.pOnTime; // value of having it on
+    el.textContent = Math.abs(d) < 0.005 ? '±0' : pts(d);
+    el.className = 'fx ' + (d >= 0.005 ? 'up' : d <= -0.005 ? 'down' : '');
+    el.title = c[k] ? 'What this lever is worth now. Turning it off loses this.' : 'What turning this on would add.';
+  });
+  for (const s of ['A', 'B', 'C']) tasks.push(() => {
+    const r = s === c.scope ? base : simulate(R, N, { ...c, scope: s });
+    $(`[data-sp="${s}"]`).textContent = pct(r.pOnTime);
+  });
+  for (const o of ['Finance', 'IT']) tasks.push(() => {
+    const r = o === c.paymentOwner ? base : simulate(R, N, { ...c, paymentOwner: o });
+    $(`[data-pp="${o}"]`).textContent = pct(r.pOnTime);
+  });
+  tasks.push(() => renderDrivers(certain ? null : drivers(R, N, c, base)));
+  const step = () => {
+    if (job !== state.job) return;
+    const t0 = performance.now();
+    while (tasks.length && performance.now() - t0 < 30) tasks.shift()();
+    if (tasks.length) setTimeout(step, 0);
+    else { $('#drv').classList.remove('pending'); $$('.fx').forEach(f => f.classList.remove('pending')); }
+  };
+  setTimeout(step, 0);
+}
+
+function renderDrivers(list) {
+  const box = $('#drv'), note = $('#drvNote');
+  if (!list) { box.innerHTML = '<p class="card-sub">With uncertainty removed, every run is the plan as written, so nothing drives the risk. That is the point: the plan has no buffer, so it only holds if nothing goes wrong.</p>'; note.textContent = ''; return; }
+  const top = list.filter(d => d.slipSaved > 0.05 || d.group).slice(0, 9);
+  const max = Math.max(0.5, ...top.map(d => d.slipSaved));
+  box.innerHTML = top.map(d => `
+    <div class="drv-row${d.group ? ' group' : ''}">
+      <div class="nm"><b>${d.label}</b><small>${d.owner}</small></div>
+      <div class="bar" aria-hidden="true"><i style="width:${Math.max(1.5, d.slipSaved / max * 100)}%"></i></div>
+      <div class="v">${d.slipSaved.toFixed(1)} d<small>${Math.abs(d.gain) < 0.005 ? '±0 pts' : pts(d.gain)}</small></div>
+    </div>`).join('');
+  const g = list.find(d => d.group);
+  const singles = list.filter(d => ['crm', 'cloud', 'testEnv', 'identity'].includes(d.key));
+  const sum = singles.reduce((a, d) => a + d.slipSaved, 0);
+  const rank = list.indexOf(g) + 1;
+  if (g && g.slipSaved > 0.2) {
+    note.innerHTML = g.slipSaved > sum * 1.15
+      ? `Fixing Bandar’s four items one at a time gives back <b>${sum.toFixed(1)} days</b> between them. Fixing all four together gives back <b>${g.slipSaved.toFixed(1)}</b>. The difference is the queue: while one item waits on him, so do the rest.`
+      : `Bandar’s four items together are ${rank === 1 ? 'the single largest source of slip' : `number ${rank} on this list`}, worth <b>${g.slipSaved.toFixed(1)} working days</b> of expected delay.`;
+  } else note.textContent = 'With these mitigations, no single owner dominates the remaining risk.';
+}
+
+/* ---------- Histogram ---------- */
+function bins() {
+  const b = [{ lo: CAL.LAUNCH, hi: CAL.LAUNCH, label: [fmtDate(CAL.LAUNCH, false), 'on time'], st: 'ok' },
+             { lo: CAL.LAUNCH + 1, hi: CAL.CAMPAIGN - 1, label: [`${fmtDate(CAL.LAUNCH + 1, false).split(' ')[0]}–${fmtDate(CAL.CAMPAIGN - 1, false)}`, 'late'], st: 'warn' }];
+  for (let k = 0; k < 6; k++) {
+    const lo = CAL.CAMPAIGN + 5 * k, hi = lo + 4;
+    const a = fmtDate(lo, false), z = fmtDate(hi, false);
+    const same = a.split(' ')[1] === z.split(' ')[1];
+    b.push({ lo, hi, label: [same ? `${a.split(' ')[0]}–${z}` : `${a}–${z}`, k === 0 ? 'campaign week' : ''], st: 'crit' });
+  }
+  b.push({ lo: CAL.CAMPAIGN + 30, hi: 1e9, label: ['Later', ''], st: 'crit' });
+  return b;
+}
+function shares(res, B) {
+  const c = new Array(B.length).fill(0);
+  for (const d of res.launch) { const i = B.findIndex(x => d >= x.lo && d <= x.hi); c[i]++; }
+  return c.map(v => v / res.n);
+}
+function drawHist() {
+  const el = $('#hist'), W = Math.max(320, el.clientWidth), H = 300;
+  const m = { l: 40, r: 8, t: 24, b: 46 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const B = bins(), cur = shares(state.res, B), pin = shares(state.pin, B);
+  const top = Math.max(0.1, Math.ceil(Math.max(...cur, ...pin) * 10 + 0.15) / 10);
+  const y = v => m.t + ih - v / top * ih, bw = iw / B.length, w = Math.min(56, bw * 0.62);
+  const ticks = []; for (let v = 0; v <= top + 1e-9; v += top > 0.5 ? 0.2 : 0.1) ticks.push(v);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Launch date distribution">`;
+  for (const v of ticks) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--rule)" stroke-width="1"/>
+    <text x="${m.l - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11.5" fill="var(--muted)" class="num">${Math.round(v * 100)}%</text>`;
+  // campaign boundary
+  const cx = m.l + bw * 2;
+  s += `<line x1="${cx}" x2="${cx}" y1="${m.t - 14}" y2="${m.t + ih}" stroke="var(--ink-2)" stroke-width="1"/>
+    <text x="${cx + 6}" y="${m.t - 5}" font-size="12" fill="var(--ink-2)" font-weight="600">Campaign starts Sun 3 Jan</text>`;
+  B.forEach((b, i) => {
+    const x = m.l + bw * i + (bw - w) / 2, v = cur[i], h = Math.max(0, m.t + ih - y(v));
+    const r = Math.min(4, h);
+    if (h > 0.5) s += `<path d="M${x},${m.t + ih} V${m.t + ih - h + r} Q${x},${m.t + ih - h} ${x + r},${m.t + ih - h} H${x + w - r} Q${x + w},${m.t + ih - h} ${x + w},${m.t + ih - h + r} V${m.t + ih} Z" fill="var(--${b.st})"/>`;
+    const py = y(pin[i]);
+    if (pin[i] > 0.001) s += `<line x1="${x - 5}" x2="${x + w + 5}" y1="${py}" y2="${py}" stroke="var(--ink-2)" stroke-width="2" stroke-linecap="round"/>`;
+    if (v >= 0.01) s += `<text x="${x + w / 2}" y="${Math.min(y(v), py - (Math.abs(py - y(v)) < 14 ? 4 : 0)) - 7}" text-anchor="middle" font-size="12.5" font-weight="600" fill="var(--ink)" class="num">${Math.round(v * 100)}%</text>`;
+    s += `<text x="${m.l + bw * i + bw / 2}" y="${m.t + ih + 18}" text-anchor="middle" font-size="12" fill="var(--ink-2)">${b.label[0]}</text>`;
+    if (b.label[1]) s += `<text x="${m.l + bw * i + bw / 2}" y="${m.t + ih + 33}" text-anchor="middle" font-size="11" fill="var(--muted)">${b.label[1]}</text>`;
+    s += `<rect x="${m.l + bw * i}" y="${m.t}" width="${bw}" height="${ih}" fill="transparent" data-i="${i}"/>`;
+  });
+  s += `<line x1="${m.l}" x2="${W - m.r}" y1="${m.t + ih}" y2="${m.t + ih}" stroke="var(--faint)" stroke-width="1"/></svg><div class="tip" hidden></div>`;
+  el.innerHTML = s;
+  const tip = el.querySelector('.tip');
+  el.querySelectorAll('rect[data-i]').forEach(rc => {
+    rc.addEventListener('mousemove', ev => {
+      const i = +rc.dataset.i, b = B[i], box = el.getBoundingClientRect();
+      tip.hidden = false; tip.style.left = (ev.clientX - box.left) + 'px'; tip.style.top = (ev.clientY - box.top) + 'px';
+      tip.innerHTML = `<b>${b.label[0]}</b> · ${(cur[i] * 100).toFixed(1)}% of runs<br>${state.pinName}: ${(pin[i] * 100).toFixed(1)}%`;
+    });
+    rc.addEventListener('mouseleave', () => tip.hidden = true);
+  });
+}
+
+/* ---------- One run ---------- */
+function pickRun() {
+  const r = state.res, L = r.launch;
+  const want = state.pick === 'p50' ? r.p50 : state.pick === 'p90' ? r.p90 : null;
+  if (want === null) return state.randIdx;
+  // a run that lands on the wanted date and starts testing late for a reason worth showing
+  let fallback = 0;
+  for (let i = 0; i < N; i++) if (L[i] === want) { fallback = i; break; }
+  return fallback;
+}
+const OWNER_OF = { crm: 'Bandar', cloud: 'Bandar', testEnv: 'Bandar', identity: 'Bandar', payment: null, defs: 'Saud', content: 'Marketing' };
+function queuePos(k, cfg) {
+  const order = ['crm', 'cloud', ...(cfg.paymentOwner === 'IT' ? ['payment', 'testEnv'] : ['testEnv']), 'identity'];
+  let q = order;
+  if (cfg.backup) q = order.filter(x => !MODEL.bandar.backup.takes.includes(x));
+  const i = q.indexOf(k); return i < 0 ? null : ['first', 'second', 'third', 'fourth', 'fifth'][i];
+}
+function explain(rec, cfg) {
+  const steps = [], rd = rec.ready, A = rec.A, P = MODEL.plan, bt = MODEL.bandar.tasks;
+  const d = x => Math.max(1, Math.round(x));
+  const depStep = (k, need, label) => {
+    const owner = k === 'payment' ? (cfg.paymentOwner === 'IT' ? 'Bandar' : 'Finance') : OWNER_OF[k];
+    let txt = `<b>${label}</b> ${d(rd[k] - need)} days late`;
+    if (owner === 'Bandar' && !cfg.naive) {
+      const backup = cfg.backup && MODEL.bandar.backup.takes.includes(k);
+      txt += backup ? ', with the backup' : `, ${queuePos(k, cfg) || ''} in Bandar’s queue`;
+    } else if (owner) txt += ` (${owner})`;
+    steps.push({ t: txt, c: 'crit' });
+  };
+  const g = rec.gate;
+  if (rec.launch <= CAL.LAUNCH) {
+    steps.push({ t: '<b>Every dependency</b> close enough to its date', c: 'okay' });
+    steps.push({ t: `Testing started ${A.test.s > P.test[0] + 0.5 ? d(A.test.s - P.test[0]) + ' days late, absorbed by the fix window' : 'on time in week 11'}` });
+    steps.push({ t: '<b>Launched Sun 27 Dec</b>', c: 'okay' });
+    return steps;
+  }
+  if (g === 'content') depStep('content', MODEL.deps.content.need, 'Content freeze');
+  else if (g === 'backend') {
+    if (rd.cloud > bt.cloud.need + 0.5) depStep('cloud', bt.cloud.need, 'Cloud access');
+    if (rd.crm > bt.crm.need + 0.5) depStep('crm', bt.crm.need, 'CRM API contract');
+    steps.push({ t: 'Back-end build finished late' });
+  } else if (g === 'frontend') {
+    if (A.design.f > P.design[0] + P.design[1] + 0.5) {
+      if (MODEL.scope[cfg.scope].types34 && rd.defs + MODEL.impact.defsToDesign >= A.design.f - 0.5 - (A.design.cliffHit ? 99 : 0) && rd.defs > MODEL.deps.defs.need + 0.5)
+        depStep('defs', MODEL.deps.defs.need, 'Types 3 and 4 definitions');
+      if (A.design.cliffHit) steps.push({ t: `<b>Designer left after week ${cfg.designerExt ? 10 : 8}</b>, front-end finished the design`, c: 'crit' });
+      steps.push({ t: `Design signed off ${d(A.design.f - 29)} days late` });
+    }
+    steps.push({ t: 'Front-end build finished late' });
+  } else if (g === 'types34') {
+    if (rd.defs > MODEL.deps.defs.need + 0.5) depStep('defs', MODEL.deps.defs.need, 'Types 3 and 4 definitions');
+    steps.push({ t: 'Types 3 and 4 build finished late' });
+  } else if (g === 'ai') steps.push({ t: `<b>AI assistant build</b> overran (option ${cfg.scope})`, c: 'crit' });
+  else if (g === 'intCrm' || g === 'intId' || g === 'intPay') {
+    const map = { intCrm: ['testEnv', 'CRM test environment', 'CRM integration'], intId: ['identity', 'Identity integration', 'Login integration'], intPay: ['payment', 'Payment credentials', 'Payment integration'] }[g];
+    const need = map[0] === 'payment' ? MODEL.deps.payment.need : bt[map[0]].need;
+    if (rd[map[0]] > need + 0.5) depStep(map[0], need, map[1]);
+    steps.push({ t: `${map[2]} finished late` });
+  }
+  if (g !== 'plan') steps.push({ t: `Testing started <b>${d(A.test.s - P.test[0])} days late</b>` });
+  else steps.push({ t: `Testing and fixes overran their weeks 11 to 16 slots`, c: 'crit' });
+  steps.push({ t: `<b>Launched ${fmtDate(rec.launch)}</b>, ${rec.launch - CAL.LAUNCH} working days late`, c: 'crit' });
+  return steps;
+}
+function drawRun(animate) {
+  const cfg = state.cfg, idx = pickRun(), rec = {};
+  runOnce(R, idx * K, cfg, NO_FIX, rec);
+  $('#story').innerHTML = `<span class="step num">Run ${(idx + 1).toLocaleString('en-GB')}</span>` +
+    explain(rec, cfg).map(s => `<span class="arrow">→</span><span class="step ${s.c || ''}">${s.t}</span>`).join('');
+  const P = MODEL.plan, A = rec.A, rd = rec.ready, bt = MODEL.bandar.tasks, D = MODEL.deps;
+  const payOwner = cfg.paymentOwner === 'IT' ? 'Bandar' : 'Finance';
+  const deps = [
+    ['CRM API contract', 'Bandar', bt.crm.need, rd.crm], ['Cloud access', 'Bandar', bt.cloud.need, rd.cloud],
+    ['CRM test environment', 'Bandar', bt.testEnv.need, rd.testEnv], ['Identity and login', 'Bandar', bt.identity.need, rd.identity],
+    ['Payment credentials', payOwner, D.payment.need, rd.payment], ['Types 3 and 4 defined', 'Saud', D.defs.need, rd.defs],
+    ['Content freeze', 'Marketing', D.content.need, rd.content]];
+  const work = [['Design', 'design'], ['Front-end', 'frontend'], ['Back-end', 'backend'],
+    ...(A.types34 ? [['Types 3 and 4', 'types34']] : []), ['AI assistant', 'ai'], ['CRM integration', 'intCrm'],
+    ['Login integration', 'intId'], ['Payment integration', 'intPay'], ['Test and UAT', 'test'], ['Fix and launch prep', 'fix']];
+  const el = $('#gantt'), W = Math.max(360, el.clientWidth), rh = 21, lab = Math.min(170, W * 0.3);
+  const xmax = Math.max(CAL.CAMPAIGN + 6, rec.launch + 4);
+  const rows = deps.length + work.length + 1, m = { t: 26, b: 40 }, H = m.t + rows * rh + m.b;
+  const x = dd => lab + 8 + dd / xmax * (W - lab - 16);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="One simulated run of the plan"><defs><clipPath id="sweep"><rect id="sweepRect" x="0" y="0" width="${W}" height="${H}"/></clipPath></defs>`;
+  // week grid
+  for (let k = 1; k <= Math.ceil(xmax / 5) + 1; k++) {
+    const dd = CAL.weekStart(k); if (dd > xmax) break;
+    s += `<line x1="${x(dd)}" x2="${x(dd)}" y1="${m.t - 6}" y2="${H - m.b}" stroke="var(--rule)" stroke-width="1"/>`;
+    if (k % 2 === 1 || W > 900) s += `<text x="${x(dd) + 3}" y="${m.t - 10}" font-size="10.5" fill="var(--muted)">W${k}</text>`;
+  }
+  const yRow = i => m.t + i * rh;
+  s += `<text x="0" y="${yRow(0) + 14}" font-size="11" font-weight="600" fill="var(--ink-2)" letter-spacing=".06em">CLIENT DEPENDENCIES</text>`;
+  let row = 1;
+  const g = [];
+  deps.forEach(([name, owner, need, ready]) => {
+    const yy = yRow(row) + rh / 2, isLate = ready > need + 0.5;
+    s += `<text x="0" y="${yy + 4}" font-size="12" fill="var(--ink)">${name} <tspan fill="var(--muted)" font-size="11">· ${owner}</tspan></text>`;
+    g.push(`<path d="M${x(need)},${yy - 5} l5,5 l-5,5 l-5,-5 Z" fill="var(--ink-2)"/>`);
+    if (isLate) g.push(`<rect x="${x(need)}" y="${yy - 3}" width="${x(ready) - x(need)}" height="6" rx="3" fill="var(--crit)"/>
+      <text x="${x(ready) + 6}" y="${yy + 4}" font-size="11" font-weight="600" fill="var(--crit)">+${Math.round(ready - need)}d</text>`);
+    row++;
+  });
+  s += `<text x="0" y="${yRow(row) + 14}" font-size="11" font-weight="600" fill="var(--ink-2)" letter-spacing=".06em">BOUD WORK</text>`; row++;
+  work.forEach(([name, k]) => {
+    const yy = yRow(row) + 4, h = rh - 8, ps = P[k][0], pe = P[k][0] + P[k][1], a = A[k];
+    s += `<text x="0" y="${yy + h / 2 + 4}" font-size="12" fill="var(--ink)">${name}</text>`;
+    s += `<rect x="${x(ps)}" y="${yy - 1}" width="${x(pe) - x(ps)}" height="${h + 2}" rx="3" fill="var(--track)" stroke="var(--rule)"/>`;
+    const okEnd = Math.min(a.f, Math.max(pe, a.s));
+    if (okEnd > a.s) g.push(`<rect x="${x(a.s)}" y="${yy + 2}" width="${Math.max(1, x(okEnd) - x(a.s))}" height="${h - 4}" rx="2" fill="var(--accent-soft)"/>`);
+    if (a.f > pe + 0.3) g.push(`<rect x="${x(Math.max(pe, a.s))}" y="${yy + 2}" width="${x(a.f) - x(Math.max(pe, a.s))}" height="${h - 4}" rx="2" fill="var(--crit)"/>`);
+    row++;
+  });
+  s += `<g clip-path="url(#sweep)">${g.join('')}</g>`;
+  // milestones
+  const vline = (dd, label, color, anchor = 'start', dy = 0) => `<line x1="${x(dd)}" x2="${x(dd)}" y1="${m.t - 4}" y2="${H - m.b + 4}" stroke="${color}" stroke-width="${color === 'var(--crit)' ? 2 : 1.5}"/>
+    <text x="${x(dd) + (anchor === 'end' ? -5 : 5)}" y="${H - m.b + 16 + dy}" font-size="11.5" font-weight="600" text-anchor="${anchor}" fill="${color}">${label}</text>`;
+  s += vline(CAL.LAUNCH, 'Committed 27 Dec', 'var(--ink-2)', 'end');
+  s += vline(CAL.CAMPAIGN, 'Campaign', 'var(--muted)');
+  if (rec.launch > CAL.LAUNCH) {
+    const near = Math.abs(x(rec.launch) - x(CAL.CAMPAIGN)) < 90;   // second line when it would hit the campaign label
+    s += vline(rec.launch, 'Launch ' + fmtDate(rec.launch, false), 'var(--crit)', 'start', near ? 15 : 0);
+  }
+  s += `</svg>`;
+  el.innerHTML = s;
+  const sw = el.querySelector('#sweepRect');
+  if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const t0 = performance.now(), dur = 2600, x0 = lab;
+    sw.setAttribute('width', x0);
+    const tick = now => { const p = Math.min(1, (now - t0) / dur); sw.setAttribute('width', x0 + (W - x0) * p); if (p < 1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+}
+
+/* ---------- Assumptions ---------- */
+function renderAssumptions() {
+  const P = MODEL.plan, E = MODEL.est, B = MODEL.bandar, D = MODEL.deps;
+  const wk = d => { for (let k = 20; k >= 1; k--) if (CAL.weekStart(k) <= d) return 'W' + k; return 'W1'; };
+  const rng = r => r.join(' / ');
+  const names = { design: 'Design to sign-off', frontend: 'Front-end build', backend: 'Back-end build', types34: 'Types 3 and 4 build',
+    intCrm: 'CRM integration', intId: 'Login integration', intPay: 'Payment integration', test: 'Test and UAT (QA at 50%)', fix: 'Fix and launch prep' };
+  const work = Object.keys(names).map(k => `<tr><td>${names[k]}</td><td>${wk(P[k][0])}</td><td class="r">${P[k][1]}</td><td class="r">${rng(E[k])}</td></tr>`).join('');
+  const ai = Object.entries(MODEL.scope).map(([k, s]) => `<tr><td>AI assistant, option ${k}</td><td>W3</td><td class="r">${P.ai[1]}</td><td class="r">${rng(s.ai)}</td></tr>`).join('');
+  const bt = Object.values(B.tasks).map(t => `<tr><td>${t.label}</td><td>${wk(t.need)}</td><td class="r">${rng(t.effort)}</td><td class="r">${t.wait[2] ? rng(t.wait) : '–'}</td></tr>`).join('');
+  const dp = Object.values(D).map(d => `<tr><td>${d.label}<br><small style="color:var(--muted)">${d.owner}</small></td><td>${wk(d.need)}</td><td class="r">${Math.round(d.pLate * 100)}%${d.mitigated ? ` → ${Math.round(d.mitigated.pLate * 100)}%` : ''}</td><td class="r">${rng(d.late)}</td></tr>`).join('');
+  $('#assumeGrid').innerHTML = `
+    <div><h3>Boud work, working days</h3><div class="tbl-wrap"><table><tr><th>Activity</th><th>Starts</th><th class="r">Planned</th><th class="r">Estimate</th></tr>${work}${ai}</table></div>
+      <p>Estimates are optimistic / likely / pessimistic. Each one fits its planned slot most of the time, as a competent plan should. Overlap into testing: ${MODEL.leadIntoTest.build} days for build work, ${MODEL.leadIntoTest.integration} for integration.</p></div>
+    <div><h3>Bandar’s queue</h3><div class="tbl-wrap"><table><tr><th>Item</th><th>Needed</th><th class="r">His effort, days</th><th class="r">Then waits</th></tr>${bt}</table></div>
+      <p>He gives Masar ${rng(B.share.map(v => Math.round(v * 100) + '%'))} of his day. In any week there is a ${Math.round(B.disruption.pWeek * 100)}% chance another project takes him away for ${rng(B.disruption.days)} days. The weekly slot adds ${Math.round(B.slot.shareBoost * 100)} points and never drops below ${Math.round(B.slot.floor * 100)}%. The backup gives ${Math.round(B.backup.share * 100)}% of a day to infrastructure items.</p></div>
+    <div><h3>Other owners</h3><div class="tbl-wrap"><table><tr><th>Dependency</th><th>Needed</th><th class="r">Chance late</th><th class="r">If late, days</th></tr>${dp}</table></div>
+      <p>Arrows show the effect of the week 2 workshop and content templates. A late CRM contract delays the back-end by ${Math.round(MODEL.impact.crmLateOnBackend * 100)}% of its lateness, or ${Math.round(MODEL.impact.crmLateWithStandIn * 100)}% with a stand-in. Design work for types 3 and 4 needs ${MODEL.impact.defsToDesign} days after definitions land. After the designer leaves, design runs ${MODEL.designer.slowdown}× slower.</p></div>`;
+}
+
+/* ---------- Boot ---------- */
+renderAssumptions();
+update();
+let rz; new ResizeObserver(() => { clearTimeout(rz); rz = setTimeout(() => { drawHist(); if (!$('#pane-run').hidden) drawRun(false); }, 80); }).observe($('main'));
+</script>
+</body>
+</html>
